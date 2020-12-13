@@ -225,6 +225,16 @@ void ListAPITransactions(const CWalletTx& wtx, UniValue& ret, const isminefilter
     UniValue vouts(UniValue::VOBJ);
     UniValue entry(UniValue::VOBJ);
 
+    bool involvesWatchAddress = false;
+    isminetype fAllFromMe = ISMINE_SPENDABLE;
+    BOOST_FOREACH(const CTxIn& txin, wtx.tx->vin)
+                {
+                    isminetype mine = pwalletMain->IsMine(txin);
+                    if(mine & ISMINE_WATCH_ONLY) involvesWatchAddress = true;
+                    if(fAllFromMe > mine) fAllFromMe = mine;
+                }
+    bool fAllFromSelf = fAllFromMe != ISMINE_NO;
+
     // Sent
     if ((!listSent.empty() || nFee != 0))
     {
@@ -391,11 +401,18 @@ void ListAPITransactions(const CWalletTx& wtx, UniValue& ret, const isminefilter
                 category = "receive";
             }
 
-            if(category=="mined"){
-                entry.push_back(Pair("isChange", false));
+            bool isChange;
+            if (category == "mined") {
+                isChange = false;
+            } else if (wtx.IsChange(static_cast<uint32_t>(r.vout))) {
+                isChange = true;
+            } else if (fAllFromSelf) {
+                isChange = true;
             } else {
-                entry.push_back(Pair("isChange", wtx.IsChange(static_cast<uint32_t>(r.vout))));
+                isChange = false;
             }
+
+            entry.push_back(Pair("isChange", isChange));
 
             string categoryIndex = category + voutIndex;
             entry.push_back(Pair("category", category));
